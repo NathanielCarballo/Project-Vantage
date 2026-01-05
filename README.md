@@ -40,14 +40,16 @@ Start Infrastructure:
 ```Bash
 cd infra
 docker-compose up -d
-Start Backend (Consumer):
 ```
+
+Start Backend (Consumer):
 
 ```Bash
 cd backend
 uvicorn app.main:app --reload
-Run Mock Agent (Producer):
 ```
+
+Run Mock Agent (Producer):
 
 ```Bash
 python agent/mock_producer.py
