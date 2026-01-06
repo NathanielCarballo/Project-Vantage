@@ -1,4 +1,4 @@
-# 🏙️ Log-Metropolis: SimCity for Infrastructure
+# 🏙️ Log-Metropolis: A visualizer for Infrastructure
 
 > **"Situational Awareness over Exact Precision."**
 
@@ -30,7 +30,7 @@ Infra: Docker Compose
 
 [x] Phase 1: The Nervous System (Pipeline: Producer -> Redpanda -> Consumer)
 
-[ ] Phase 2: The Heartbeat (Aggregation & WebSockets)
+[x] Phase 2: The Heartbeat (Aggregation & WebSockets)
 
 [ ] Phase 3: The City (R3F Visualization)
 
