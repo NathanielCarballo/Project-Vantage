@@ -14,9 +14,9 @@ class EventType(str, Enum):
     HEARTBEAT = "HEARTBEAT"
 
 class LogEvent(BaseModel):
-    service_name: str
+    source_service: str  # Maps to service_name in backend
     target_service: str = "unknown"
-    timestamp: float 
+    timestamp: float
     metric_value: float = 0.0
     event_type: EventType = EventType.TRAFFIC
     severity: Severity = Severity.INFO

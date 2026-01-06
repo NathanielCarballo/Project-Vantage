@@ -1,65 +1,83 @@
-from aiokafka import AIOKafkaConsumer
 import asyncio
 import json
-from app.services.city_manager import city_manager
-from app.schemas import LogEvent
+import os
+import time
 
-KAFKA_BOOTSTRAP_SERVERS = "redpanda:9092" # Or whatever your internal docker address is, likely redpanda:9092 or localhost:9092 depending on context. docker-compose usually handles 'redpanda'
+from aiokafka import AIOKafkaConsumer
+
+from app.schemas import LogEvent, Severity
+from app.services.city_manager import city_manager
+
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
 TOPIC = "observability.logs.raw.v1"
-# For local dev running outside docker, it might be localhost:9092.
-# Since this is running in backend service, we'll try to find the right config or assume env var. 
-# But for now let's stick to what was likely intended or standard.
-# If running locally (not in docker), it needs localhost. 
-# If running in docker, it needs service name.
-# Let's assume we might be running locally for now based on typical user flow unless "docker compose up" implies full stack content. 
-# User asked for "backend" folder, implying we might run it from there. 
-# Let's try "localhost:9092" as default for simplicity IF running locally, but "redpanda:9092" if inside.
-# Given the user wants to run "docker compose up" for infra and then run agent, 
-# and potentially run the backend? 
-# The user didn't specify backend running mode (Docker vs Local). 
-# But usually python dev implies local.
-# Let's default to localhost:9092 for the consumer if running locally.
+CONSUMER_GROUP = "city-builder-v1"
+
+# Map event_type strings to Severity enum
+SEVERITY_MAP = {
+    "ERROR": Severity.ERROR,
+    "WARNING": Severity.WARNING,
+    "INFO": Severity.INFO,
+    "TRAFFIC": Severity.INFO,
+    "HEARTBEAT": Severity.INFO,
+}
+
 
 async def consume_logs():
-    print("Starting Kafka Consumer...")
-    # NOTE: If running inside Docker, this needs to be 'redpanda:9092'
-    # If running locally on host, 'localhost:9092'
+    """
+    Kafka consumer loop that ingests log events into the CityStateManager.
+    Runs as a background task alongside the broadcast_state loop.
+    """
+    print(f"Starting Kafka Consumer (bootstrap: {KAFKA_BOOTSTRAP_SERVERS})...")
+
     consumer = AIOKafkaConsumer(
         TOPIC,
-        bootstrap_servers='localhost:9092', 
-        group_id="city-builder-v1"
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        group_id=CONSUMER_GROUP,
+        auto_offset_reset="latest",
     )
-    # We might want a retry loop here or fallback
-    try:
-        await consumer.start()
-        print("Kafka Consumer Connected")
-        try:
-            async for msg in consumer:
-                try:
-                    data = json.loads(msg.value)
-                    # Mapping raw log to LogEvent if needed, or direct parse
-                    # The agent sends LogEvent json structure.
-                    # We need to adapt it to our new LogEvent with severity if it's missing or different.
-                    # Agent sends: source_service, target_service, timestamp (datetime), metric_value, event_type
-                    # Our new LogEvent expects: service_name... timestamp (float)
-                    
-                    # Adapter logic:
-                    log_event = LogEvent(
-                        service_name=data.get("source_service", "unknown"),
-                        timestamp=time.time(), # Use current time for simplicity or parse data['timestamp']
-                        severity=data.get("event_type", "INFO") if data.get("event_type") in ["INFO", "WARNING", "ERROR"] else "INFO",
-                        # We might need to map EventType.ERROR to Severity.ERROR
-                    )
-                    
-                    if data.get("event_type") == "ERROR":
-                        log_event.severity = "ERROR"
-                    
-                    await city_manager.ingest(log_event)
-                except Exception as e:
-                    print(f"Error processing message: {e}")
-        finally:
-            await consumer.stop()
-    except Exception as e:
-        print(f"Failed to start consumer (Is Redpanda up?): {e}")
 
-import time
+    # Retry loop for initial connection
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            await consumer.start()
+            print("Kafka Consumer Connected")
+            break
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt
+                print(f"Consumer connection failed (attempt {attempt + 1}/{max_retries}): {e}")
+                print(f"Retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
+            else:
+                print(f"Failed to connect to Kafka after {max_retries} attempts: {e}")
+                return
+
+    try:
+        async for msg in consumer:
+            try:
+                data = json.loads(msg.value)
+
+                # Map incoming message to LogEvent schema
+                # Producer sends: source_service, target_service, timestamp, metric_value, event_type
+                event_type = data.get("event_type", "TRAFFIC")
+                severity = SEVERITY_MAP.get(event_type, Severity.INFO)
+
+                log_event = LogEvent(
+                    service_name=data.get("source_service", "unknown"),
+                    target_service=data.get("target_service", "unknown"),
+                    timestamp=time.time(),
+                    metric_value=data.get("metric_value", 0.0),
+                    severity=severity,
+                    payload=data.get("payload", ""),
+                )
+
+                await city_manager.ingest(log_event)
+
+            except json.JSONDecodeError as e:
+                print(f"Invalid JSON in message: {e}")
+            except Exception as e:
+                print(f"Error processing message: {e}")
+    finally:
+        await consumer.stop()
+        print("Kafka Consumer Stopped")

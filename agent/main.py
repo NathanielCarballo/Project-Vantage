@@ -5,7 +5,7 @@ import time
 from aiokafka import AIOKafkaProducer
 from schemas import LogEvent, EventType, Severity
 
-KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
+KAFKA_BOOTSTRAP_SERVERS = "localhost:19092"
 TOPIC = "observability.logs.raw.v1"
 
 async def send_one(producer):
@@ -19,7 +19,7 @@ async def send_one(producer):
     # Consumer expects: source_service, and eventually maps event_type/severity.
     
     event = LogEvent(
-        service_name=f"service-{random.randint(1, 10)}",
+        source_service=f"service-{random.randint(1, 10)}",
         target_service=f"service-{random.randint(1, 10)}",
         timestamp=time.time(),
         metric_value=random.uniform(0.1, 5.0),
