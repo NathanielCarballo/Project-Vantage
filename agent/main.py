@@ -1,9 +1,9 @@
 import asyncio
 import random
 import json
+import time
 from aiokafka import AIOKafkaProducer
-from schemas import LogEvent, EventType
-from datetime import datetime
+from schemas import LogEvent, EventType, Severity
 
 KAFKA_BOOTSTRAP_SERVERS = "localhost:19092"
 TOPIC = "observability.logs.raw.v1"
@@ -11,20 +11,26 @@ TOPIC = "observability.logs.raw.v1"
 async def send_one(producer):
     # Determine event type
     event_type = random.choice(list(EventType))
+    severity = Severity.INFO
+    if event_type == EventType.ERROR:
+        severity = Severity.ERROR
+    
+    # We use the schema dict structure but we need to ensure it matches what Consumer expects
+    # Consumer expects: source_service, and eventually maps event_type/severity.
     
     event = LogEvent(
         source_service=f"service-{random.randint(1, 10)}",
         target_service=f"service-{random.randint(1, 10)}",
-        timestamp=datetime.utcnow(),
+        timestamp=time.time(),
         metric_value=random.uniform(0.1, 5.0),
-        event_type=event_type
+        event_type=event_type,
+        severity=severity
     )
     
     # Serialize with Pydantic and encode to bytes
-    value_json = event.model_dump_json().encode("utf-8") # Pydantic v2
+    value_json = event.model_dump_json().encode("utf-8")
     
     await producer.send_and_wait(TOPIC, value_json)
-    # print(f"Sent: {event}")
 
 async def main():
     print(f"Starting Traffic Agent. Target: {KAFKA_BOOTSTRAP_SERVERS} -> {TOPIC}")

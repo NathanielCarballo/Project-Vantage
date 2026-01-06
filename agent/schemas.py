@@ -1,7 +1,12 @@
-from enum import Enum
 from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
+from enum import Enum
 from datetime import datetime
-from typing import List
+
+class Severity(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
 
 class EventType(str, Enum):
     TRAFFIC = "TRAFFIC"
@@ -9,19 +14,10 @@ class EventType(str, Enum):
     HEARTBEAT = "HEARTBEAT"
 
 class LogEvent(BaseModel):
-    source_service: str
-    target_service: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-    metric_value: float
-    event_type: EventType
-
-class ServiceMetric(BaseModel):
-    service_name: str
-    request_count: int
-    error_count: int
-    avg_latency: float
-
-class WorldState(BaseModel):
-    timestamp: datetime
-    active_services: List[ServiceMetric]
-    global_traffic_rate: float
+    source_service: str  # Maps to service_name in backend
+    target_service: str = "unknown"
+    timestamp: float
+    metric_value: float = 0.0
+    event_type: EventType = EventType.TRAFFIC
+    severity: Severity = Severity.INFO
+    payload: str = ""

@@ -1,7 +1,12 @@
-from enum import Enum
 from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
+from enum import Enum
 from datetime import datetime
-from typing import List
+
+class Severity(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
 
 class EventType(str, Enum):
     TRAFFIC = "TRAFFIC"
@@ -9,19 +14,31 @@ class EventType(str, Enum):
     HEARTBEAT = "HEARTBEAT"
 
 class LogEvent(BaseModel):
-    source_service: str
-    target_service: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-    metric_value: float
-    event_type: EventType
-
-class ServiceMetric(BaseModel):
     service_name: str
-    request_count: int
-    error_count: int
-    avg_latency: float
+    target_service: str = "unknown" # Added Default
+    timestamp: float # Changed from datetime
+    metric_value: float = 0.0 # Added Default
+    event_type: EventType = EventType.TRAFFIC # Added Default
+    severity: Severity = Severity.INFO
+    payload: str = ""
 
-class WorldState(BaseModel):
-    timestamp: datetime
-    active_services: List[ServiceMetric]
-    global_traffic_rate: float
+# --- New Models ---
+
+class BuildingState(BaseModel):
+    name: str
+    height: float = 0.0
+    health: float = 0.0  # 0.0 (Good) to 1.0 (Fire)
+    request_count: int = 0
+    error_count: int = 0
+    last_seen: float = 0.0
+
+class GlobalStats(BaseModel):
+    total_rps: int
+    total_errors: int
+    active_services: int
+
+class WorldUpdate(BaseModel):
+    tick_id: int
+    timestamp: float
+    buildings: Dict[str, BuildingState]
+    global_stats: GlobalStats
