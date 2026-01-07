@@ -27,7 +27,7 @@ class LogEvent(BaseModel):
 class BuildingState(BaseModel):
     name: str
     height: float = 0.0
-    health: float = 0.0  # 0.0 (Good) to 1.0 (Fire)
+    health: float = 1.0  # HP Bar: 1.0 (Perfect Health) to 0.0 (Critical/Dead)
     request_count: int = 0
     error_count: int = 0
     last_seen: float = 0.0
