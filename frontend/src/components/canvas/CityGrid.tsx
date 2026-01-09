@@ -22,6 +22,13 @@ const GRID_CELL_SIZE = 2.5;
 export function CityGrid() {
   // Subscribe to building list - re-renders only when buildings spawn/despawn
   const buildingNames = useCityStore((s) => s.buildingNames);
+  const setSelected = useCityStore((s) => s.setSelected);
+
+  // Click on ground clears selection
+  const handleGroundClick = (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    setSelected(null);
+  };
 
   /**
    * INTERPOLATION LOOP
@@ -38,11 +45,12 @@ export function CityGrid() {
 
   return (
     <group>
-      {/* Ground plane */}
+      {/* Ground plane - click to deselect */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, -0.01, 0]}
         receiveShadow
+        onClick={handleGroundClick}
       >
         <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
         <meshStandardMaterial color="#1a1a2e" />
