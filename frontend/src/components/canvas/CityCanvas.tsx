@@ -10,6 +10,8 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Stats } from '@react-three/drei';
 import { CityGrid } from './CityGrid';
+import { TrafficSystem } from './TrafficSystem';
+import { EffectsLayer } from './EffectsLayer';
 
 interface CityCanvasProps {
   showStats?: boolean;
@@ -63,8 +65,14 @@ export function CityCanvas({ showStats = false }: CityCanvasProps) {
       {/* The City */}
       <CityGrid />
 
+      {/* Traffic particles - data flowing to buildings */}
+      <TrafficSystem />
+
       {/* Performance stats (toggle with prop) */}
       {showStats && <Stats />}
+
+      {/* Post-processing effects (MUST be last child) */}
+      <EffectsLayer />
     </Canvas>
   );
 }

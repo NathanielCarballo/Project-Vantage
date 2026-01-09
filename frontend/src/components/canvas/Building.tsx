@@ -35,6 +35,7 @@ export function Building({ serviceName }: BuildingProps) {
   const meshRef = useRef<Mesh>(null);
 
   // Use MeshStandardMaterial for lighting reaction + glow
+  // toneMapped: false allows HDR values (>1.0) to trigger Bloom effect
   const material = useMemo(() => {
     return new MeshStandardMaterial({
       color: COLOR_ACTIVE,       // Base color (will be overridden)
@@ -42,6 +43,7 @@ export function Building({ serviceName }: BuildingProps) {
       emissiveIntensity: 0.6,    // Neon glow intensity
       metalness: 0.5,            // Metallic look
       roughness: 0.2,            // Shiny/Polished
+      toneMapped: false,         // CRITICAL: Allows HDR values for Bloom
     });
   }, []);
 
@@ -92,6 +94,13 @@ export function Building({ serviceName }: BuildingProps) {
 
     // We clone the dormant color and lerp towards active color
     const currentColor = COLOR_DORMANT.clone().lerp(COLOR_ACTIVE, mixFactor);
+
+    // BLOOM EFFECT: When health is high (neon mode), multiply color intensity
+    // This pushes RGB values above 1.0, triggering the Bloom post-processing effect
+    // Health 0.0 = scalar 1.0 (no bloom)
+    // Health 1.0 = scalar 2.0 (full bloom glow)
+    const bloomScalar = 1.0 + safeHealth;
+    currentColor.multiplyScalar(bloomScalar);
 
     if (material instanceof MeshStandardMaterial) {
       material.color.copy(currentColor);
