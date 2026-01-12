@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import time
 
@@ -7,6 +8,8 @@ from aiokafka import AIOKafkaConsumer
 
 from app.schemas import LogEvent, Severity
 from app.services.city_manager import city_manager
+
+logger = logging.getLogger(__name__)
 
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
 TOPIC = "observability.logs.raw.v1"
@@ -56,13 +59,15 @@ async def consume_logs():
     try:
         async for msg in consumer:
             try:
+                # Step 1: Decode JSON
                 data = json.loads(msg.value)
 
-                # Map incoming message to LogEvent schema
+                # Step 2: Map incoming message to LogEvent schema
                 # Producer sends: source_service, target_service, timestamp, metric_value, event_type
                 event_type = data.get("event_type", "TRAFFIC")
                 severity = SEVERITY_MAP.get(event_type, Severity.INFO)
 
+                # Step 3: Validate Pydantic model
                 log_event = LogEvent(
                     service_name=data.get("source_service", "unknown"),
                     target_service=data.get("target_service", "unknown"),
@@ -72,12 +77,14 @@ async def consume_logs():
                     payload=data.get("payload", ""),
                 )
 
+                # Step 4: Ingest into city manager
                 await city_manager.ingest(log_event)
 
-            except json.JSONDecodeError as e:
-                print(f"Invalid JSON in message: {e}")
             except Exception as e:
-                print(f"Error processing message: {e}")
+                # Resilience guardrail: Log and continue
+                # Malformed messages should not crash the consumer loop
+                logger.warning(f"Malformed log dropped: {e}")
+                continue
     finally:
         await consumer.stop()
-        print("Kafka Consumer Stopped")
+        logger.info("Kafka Consumer Stopped")

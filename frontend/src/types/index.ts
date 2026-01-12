@@ -9,6 +9,7 @@
 export interface BuildingData {
   height: number;  // Load metric (0.0 - 1.0+)
   health: number;  // Health metric (0.0 - 1.0, where 1.0 = green, 0.0 = red)
+  status: string;  // Lifecycle status: "active", "decaying", or "pruned"
 }
 
 /** WebSocket message shape */
@@ -35,6 +36,9 @@ export interface MutableBuildingState {
 
   // Timestamp for spawn animation
   spawnTime: number;
+
+  // Lifecycle status: "active", "decaying", or "pruned"
+  status: string;
 }
 
 /** The mutable city state stored outside React's reactive system */

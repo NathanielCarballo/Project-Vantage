@@ -114,6 +114,9 @@ export function TrafficSystem() {
       const building = buildings.get(serviceName);
       if (!building) continue;
 
+      // CRITICAL: No traffic for decaying buildings - immediate cutoff
+      if (building.status === 'decaying') continue;
+
       // Only spawn traffic for healthy buildings (health > 0.5)
       if (building.currentHealth < 0.5) continue;
 

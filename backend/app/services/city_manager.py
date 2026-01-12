@@ -1,7 +1,12 @@
 import asyncio
 import time
+import copy
+import threading
 from typing import Dict
 from app.schemas import LogEvent, BuildingState, WorldUpdate, GlobalStats, Severity
+
+THRESHOLD_DECAY = 10.0
+THRESHOLD_PRUNE = 60.0
 
 class CityStateManager:
     """
@@ -19,10 +24,51 @@ class CityStateManager:
         - Health regenerates slowly over time
     """
 
+    def apply_entropy(self):
+        """
+        Scans services and applies decay/prune logic based on last heartbeat.
+        - > 60s since last_seen: Prune (Delete building).
+        - > 10s since last_seen: Decay (Set status='decaying', zero metrics).
+        - Else: Active (Set status='active').
+
+        Note: Must be called while holding self._lock.
+        """
+        now = time.time()
+        keys_to_remove = []
+
+        for name, building in self.buildings.items():
+            delta = now - building.last_seen
+
+            if delta > THRESHOLD_PRUNE:
+                # Building has been silent too long - mark for removal
+                keys_to_remove.append(name)
+            elif delta > THRESHOLD_DECAY:
+                # NUCLEAR OPTION: Replace with fresh instance to kill ALL traffic history
+                # This guarantees all metrics reset to defaults (0) with no hidden state
+                current_last_seen = building.last_seen
+
+                # Create fresh BuildingState (all metrics default to 0)
+                new_building = BuildingState(name=name)
+
+                # Restore critical metadata
+                new_building.last_seen = current_last_seen  # Preserve timestamp for continued aging toward prune
+                new_building.status = "decaying"
+
+                # Replace in memory - this is the key step
+                self.buildings[name] = new_building
+            else:
+                # Building is healthy - mark as active
+                building.status = "active"
+
+        # Sweep: Remove pruned buildings
+        for key in keys_to_remove:
+            del self.buildings[key]
+
     def __init__(self):
         self.buildings: Dict[str, BuildingState] = {}
         self.tick_id = 0
         self.lock = asyncio.Lock()
+        self._lock = threading.Lock()
 
         # Simulation Config
         self.height_decay_rate = 0.95      # Load decays each tick
@@ -56,6 +102,7 @@ class CityStateManager:
     async def tick(self) -> WorldUpdate:
         """
         Run one frame of the simulation.
+        - Apply entropy (decay/prune stale services)
         - Height (load) decays over time
         - Health slowly regenerates toward full
         """
@@ -64,6 +111,9 @@ class CityStateManager:
             now = time.time()
             total_rps = 0
             total_errors = 0
+
+            # Step 1: Apply entropy - prune/decay stale buildings
+            self.apply_entropy()
 
             for name, building in self.buildings.items():
                 # 1. Decay Height (load decreases when traffic stops)
@@ -83,10 +133,16 @@ class CityStateManager:
                 building.request_count = 0
                 building.error_count = 0
 
+            # Step 2: Create snapshot of buildings
+            buildings_snapshot = {
+                name: building.model_copy()
+                for name, building in self.buildings.items()
+            }
+
             return WorldUpdate(
                 tick_id=self.tick_id,
                 timestamp=now,
-                buildings=self.buildings.copy(),
+                buildings=buildings_snapshot,
                 global_stats=GlobalStats(
                     total_rps=total_rps,
                     total_errors=total_errors,

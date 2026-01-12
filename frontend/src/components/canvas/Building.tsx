@@ -30,6 +30,7 @@ const BUILDING_DEPTH = 1.5;      // Z dimension
 // Colors - Cyberpunk Theme
 const COLOR_ACTIVE = new Color('#00ff88');   // Neon Green/Cyan
 const COLOR_DORMANT = new Color('#222233');  // Dark Blue/Grey
+const COLOR_DECAYING = new Color('#4a4a4a'); // Dark Grey (Dead/Decaying)
 
 export function Building({ serviceName }: BuildingProps) {
   const meshRef = useRef<Mesh>(null);
@@ -101,7 +102,18 @@ export function Building({ serviceName }: BuildingProps) {
     mesh.position.y = targetScale / 2;
 
     // --- 2. COLOR LOGIC ---
-    // Interpolate from DORMANT (0.0) to ACTIVE (1.0) based on health
+    // Priority 1: Check lifecycle status - decaying buildings turn grey immediately
+    if (state.status === 'decaying') {
+      if (material instanceof MeshStandardMaterial) {
+        material.color.copy(COLOR_DECAYING);
+        material.emissive.copy(COLOR_DECAYING);
+        // No bloom for decaying buildings - they're dead
+        material.emissiveIntensity = 0.1;
+      }
+      return; // Skip health-based coloring
+    }
+
+    // Priority 2: Health-based coloring for active buildings
     const rawHealth = state.currentHealth;
     const safeHealth = Number.isFinite(rawHealth) ? MathUtils.clamp(rawHealth, 0, 1) : 0.5;
 
@@ -124,6 +136,7 @@ export function Building({ serviceName }: BuildingProps) {
       material.color.copy(currentColor);
       // Update emissive color to match, creating the glow effect
       material.emissive.copy(currentColor);
+      material.emissiveIntensity = 0.6; // Restore bloom for active buildings
     }
   });
 

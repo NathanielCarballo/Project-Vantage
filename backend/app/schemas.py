@@ -31,6 +31,7 @@ class BuildingState(BaseModel):
     request_count: int = 0
     error_count: int = 0
     last_seen: float = 0.0
+    status: str = "active"  # "active", "decaying", or "pruned"
 
 class GlobalStats(BaseModel):
     total_rps: int

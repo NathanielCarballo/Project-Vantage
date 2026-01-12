@@ -122,6 +122,8 @@ export function updateCityState(
       // Update existing building's targets (no re-render)
       existing.targetHeight = data.height;
       existing.targetHealth = data.health;
+      // Status updates IMMEDIATELY - no interpolation (critical for decay)
+      existing.status = data.status ?? 'active';
     } else {
       // New building detected - spawn it
       const index = cityStateRef.buildingOrder.length;
@@ -135,6 +137,7 @@ export function updateCityState(
         gridX: pos.x,
         gridZ: pos.z,
         spawnTime: now,
+        status: data.status ?? 'active',
       };
 
       cityStateRef.buildings.set(serviceName, newBuilding);
